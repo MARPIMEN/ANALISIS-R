@@ -1,0 +1,205 @@
+---
+title: "prueba1"
+author: "marle"
+format: pdf
+editor: visual
+---
+
+```{=tex}
+\tableofcontents
+\newpage
+\section{prueba1}
+```
+# ANALISIS FACTORIAL
+
+```{r}
+library(stats)
+library(psych)
+library(polycor)
+library(ggcorrplot)
+library(corrplot)
+library(corrr)
+
+```
+
+```{r}
+library(summarytools)
+```
+
+## Descripción del conjunto de datos bfi
+
+El siguiente fragmento de código muestra cómo cargar el conjunto de datos bfi incluido en el paquete psych.
+
+Conjunto de datos bfi
+
+```{r}
+bfi_s <- bfi[,1:25]
+```
+
+El data.frame bfi_s contiene las variables A1 a A5, C1 a C5, E1 a E5, N1 a N5 y O1 a O5, que son las respuestas de cada individuo a los 25 ítems del cuestionario MBI.
+
+## Estadística descriptiva básica
+
+En esta sección, se realiza un análisis de datos exploratorio preliminar del conjunto de datos. Para ello, si la variable es cuantitativa, se muestran los estadísticos descriptivos numéricos básicos y una representación de su histograma, densidad y boxplot. Por otro lado, para las variables categóricas se proporciona su tabla de frecuencias y un diagrama de sectores y barras. En esta ocasión se trata de una asignación voluntaria para el lector, quien puede replicar el código fuente de Práctica de ACP_1.1 o Práctioca de ACP_1.2 que realizan esta tarea.
+
+##Explorando el conjunto
+
+```{r}
+attach(bfi_s)
+```
+
+```{r}
+colnames(bfi_s)
+```
+
+```{r}
+head(bfi_s, n=5)
+```
+
+```{r}
+freq(A2)
+```
+
+```{r}
+freq(A3)
+```
+
+```{r}
+freq(A4)
+```
+
+```{r}
+freq(A5)
+```
+
+## Datos perdidos (NA)
+
+### Identificación y tratamiento
+
+La decisión para los datos no disponibles es reemplazarlos por la mediana de su variable. Esta decisión se ha tomado asumiendo que el comportamiento de la NA es totalmente aleatorio (esto habría que analizarlo en profundidad para confirmar esta decisión tomada). Quizás no sea la mejor opción, depende del problema que se esté analizando y de los datos registrados, pero es una forma de introducir al lector a cómo definir funciones en lenguaje R. El siguiente código fuente define la función not_available cuya utilidad es tratar con datos no disponibles o perdidos.
+
+```{r}
+not_available<-function(data,na.rm=F){
+data[is.na(data)]<-median(data,na.rm=T)
+data
+}
+bfi_s<-as.data.frame(apply(bfi_s,2,not_available))
+```
+
+```{r}
+head(bfi_s,n=3)
+```
+
+## Análisis factorial
+
+### Supuestos previos
+
+#### Variables correladas
+
+De acuerdo con los resultados numéricos siguientes, se observa que los datos están correlacionados tanto a nivel de muestra (ver matriz de correlación) como a nivel de población (la prueba de esfericidad de Bartlett es significativa).
+
+```{r}
+correlation_matrix<-cor(bfi_s)
+correlation_matrix[1:6,1:6]
+```
+
+```{r}
+det(correlation_matrix)
+```
+
+```{r}
+bfi_scale<-scale(bfi_s)
+cortest.bartlett(cor(bfi_scale))
+```
+
+A continuación se ilustran diferentes resultados gráficos que proporcionan una idea intuitiva de la correlación entre las variables. Un ojo entrenado podría anticipar la cantidad adecuada de factores con esta información visual.
+
+```{r}
+poly_cor<-hetcor(bfi_s)$correlations
+```
+
+```{r}
+ggcorrplot(poly_cor, type="lower",hc.order=T)
+```
+
+```{r}
+corrplot(cor(bfi_s), order = "hclust", tl.col='black', tl.cex=1)
+```
+
+```{r}
+bfi_s_correlaciones <- correlate(bfi_s) #C?lculo de un objeto de correlaciones
+rplot(bfi_s_correlaciones, legend = TRUE, colours = c("firebrick1", "black","darkcyan"),
+print_cor = TRUE)
+```
+
+Obtención del modelo Se debe elegir un método para extraer los factores: factor principal, probabilidad, etc. La función fa() implementa hasta 6 métodos diferentes. Este ejemplo compara los resultados de dos métodos. En primer lugar se realizan dos modelos con tres factores. A continuación, se muestra la matriz factorial de tres factores latentes para los dos modelos para comparar las diferencias entre los pesos factoriales.
+
+```{r}
+modelo1<-fa(poly_cor,
+nfactors = 3,
+rotate = "none",
+fm="mle") 
+
+modelo2<-fa(poly_cor,
+nfactors = 3,
+rotate = "none",
+fm="minres")
+
+print("Modelo 1: mle")
+modelo1$loadings
+```
+
+```{r}
+print("Modelo 2: minres")
+```
+
+```{r}
+modelo2$loadings
+```
+
+Finalmente, se hace una comparación de las comunalidades de estos dos métodos. Parece que las comunalidades del modelo de verosimilitud (primera columna) son mayores que las del modelo de residuos mínimos (segunda columna).
+
+```{r}
+sort(modelo1$communality,decreasing = T)->c1
+sort(modelo2$communality,decreasing = T)->c2
+head(cbind(c1,c2))
+```
+
+```{r}
+sort(modelo1$uniquenesses,decreasing = T)->u1
+sort(modelo2$uniquenesses,decreasing = T)->u2
+head(cbind(u1,u2),n=10)
+```
+
+## Número adecuado de factores latentes
+
+Existen diferentes criterios, entre los que destacan el Scree plot (Cattel 1966) y el análisis paralelo (Horn 1965). Según los siguientes resultados gráficos, 5 se considera el número óptimo de factores (análisis paralelo), a pesar de que 3 son los apropiados según el primer gráfico scree plot.
+
+```{r}
+scree(poly_cor)
+```
+
+```{r}
+fa.parallel(poly_cor,n.obs=100,fa="fa",fm="ml")
+```
+
+Se realiza el modelo factorial con 5 factores implementando una rotación varimax para buscar una interpretación más sencilla.
+
+```{r}
+modelo_varimax<-fa(poly_cor,nfactors = 5,rotate = "varimax",
+fa="mle")
+print(modelo_varimax$loadings,cut=0)
+```
+
+Visualmente podríamos hacer el esfuerzo de ver qué variables se correlacionan cada una con uno de los factores, pero es muy tedioso. Entonces usamos la siguiente representación en modo diagrama. En este diagrama, entre otras cosas, se ve que el primer factor está asociado a los ítems E1, E2, E3, E4 y E5, que son los ítems del cuestionario que intentan identificar la cualidad de la extraversión. El resto de ítems quedan igualmente englobados dentro de la dimensión de la personalidad correspondiente.
+
+```{r}
+fa.diagram(modelo_varimax)
+```
+
+Otra forma de hacer el análisis anterior.
+
+```{r}
+FA<-factanal(bfi_s,factors=5, rotation="varimax")
+FA$loadings
+```
